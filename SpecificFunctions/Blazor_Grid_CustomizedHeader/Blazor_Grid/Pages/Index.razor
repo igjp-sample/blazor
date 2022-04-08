@@ -1,0 +1,53 @@
+﻿@page "/"
+@using IgniteUI.Blazor.Controls
+@inject IIgniteUIBlazor IgniteUIBlazor
+
+@code
+{
+    public List<SaleInfo> DataSource { get; set; } = new List<SaleInfo>();
+    public TemplateHeader CustomHeader { get; set; } = new TemplateHeader() { CellUpdatingScript = "CustomHeaderScript" };
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        DataGridModule.Register(IgniteUIBlazor);
+
+        for (int i = 0; i < 10; i++)
+        {
+            this.DataSource.Add(new SaleInfo
+            {
+                ProductID = 1001 + i,
+                ProductName = $"商品 {i + 1}",
+                Country = "日本",
+                OrderDate = DateTime.Today,
+                Priority = 0
+            });
+        }
+
+    }
+
+    public class SaleInfo
+    {
+        public double ProductID { get; set; }
+        public string ProductName { get; set; }
+        public string Country { get; set; }
+        public DateTime OrderDate { get; set; }
+        public int Priority { get; set; }
+    }
+}
+
+<DataGrid
+          Width="600px"
+          DefaultColumnMinWidth="36"
+          DataSource="DataSource"
+          HeaderHeight="120"
+          HeaderBackground="Transparent"
+          HeaderSeparatorBackground="Transparent"
+          Border="Transparent"
+          AutoGenerateColumns="false">
+    <NumericColumn Field="ProductID" HeaderText="商品ID" Width="@("*>100")" BorderLeftWidth="1" BorderRightWidth="1" Border="#cccccc" Header="@CustomHeader" />
+    <TextColumn Field="ProductName" HeaderText="商品名" Width="@("*>100")" BorderRightWidth="1" Border="#cccccc" Header="@CustomHeader" />
+    <TextColumn Field="Country" HeaderText="生産国" Width="@("*>100")" BorderRightWidth="1" Border="#cccccc" Header="@CustomHeader" />
+    <DateTimeColumn Field="OrderDate" HeaderText="発注日" Width="@("*>100")" BorderRightWidth="1" Border="#cccccc" Header="@CustomHeader" />
+    <NumericColumn Field="Priority" HeaderText="優先度" Width="36" Header="@CustomHeader" BorderRightWidth="1" Border="#cccccc" HorizontalAlignment="@CellContentHorizontalAlignment.Center" />
+</DataGrid>

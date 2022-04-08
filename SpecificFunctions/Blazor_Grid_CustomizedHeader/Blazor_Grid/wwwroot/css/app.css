@@ -1,0 +1,88 @@
+﻿@import url('open-iconic/font/css/open-iconic-bootstrap.min.css');
+
+html, body {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+a, .btn-link {
+    color: #0366d6;
+}
+
+.btn-primary {
+    color: #fff;
+    background-color: #1b6ec2;
+    border-color: #1861ac;
+}
+
+.content {
+    padding-top: 1.1rem;
+}
+
+.valid.modified:not([type=checkbox]) {
+    outline: 1px solid #26b050;
+}
+
+.invalid {
+    outline: 1px solid red;
+}
+
+.validation-message {
+    color: red;
+}
+
+#blazor-error-ui {
+    background: lightyellow;
+    bottom: 0;
+    box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.2);
+    display: none;
+    left: 0;
+    padding: 0.6rem 1.25rem 0.7rem 1.25rem;
+    position: fixed;
+    width: 100%;
+    z-index: 1000;
+}
+
+    #blazor-error-ui .dismiss {
+        cursor: pointer;
+        position: absolute;
+        right: 0.75rem;
+        top: 0.5rem;
+    }
+
+
+.header-cell-row {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    line-height: initial;
+    justify-content: space-between;
+}
+.header-cell-row.single_row {
+    justify-content: flex-end;
+}
+.header-cell-row > div {
+    height: 33%;
+    background: #ccc;
+    font-size: 12px;
+    padding: 1em;
+}
+.header-cell-row.single_row > div {
+    background: #a0c7e4;
+}
+.header-cell-row-parent {
+    padding:0!important;
+}
+.header-cell-vertical {
+    height: 100%;
+    background: #a0c7e4;
+}
+.header-cell-vertical > div {
+    font-size: 12px;
+    transform: rotate( 90deg );
+    transform-origin: center;
+}
+.header-cell-vertical > div > span {
+    transform: rotate( -90deg );
+    display: inline-block;
+    transform-origin: center;
+}

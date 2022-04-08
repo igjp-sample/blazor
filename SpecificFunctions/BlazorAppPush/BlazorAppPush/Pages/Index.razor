@@ -1,0 +1,56 @@
+﻿@page "/"
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+@inject HttpClient httpClient
+@using System.Threading.Tasks;
+
+<h1>PWA プッシュ通知</h1>
+
+<div class="row">
+    <div class="col-auto">
+        <div class="form-group">
+            <label>ブラウザサポート</label>
+            <div class="alert @(isSupportedByBrowser ? "alert-success" : "alert-warning")" role="alert">
+                @(isSupportedByBrowser ? "このブラウザはプッシュ通知をサポートしています" : "このブラウザはプッシュ通知をサポートしていません")
+            </div>
+        </div>
+    </div>
+</div>
+<div class="row">
+    <div class="col-auto">
+        <div class="form-group">
+            <label>ユーザーによる許可</label>
+            <div class="alert @(permission == "granted" ? "alert-success" :"alert-warning")" role="alert">
+                @(permission == "granted" ? "プッシュ通知は許可されています" : "プッシュ通知は許可されていません")
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (isSupportedByBrowser && permission == "granted")
+{
+    <div class="row">
+        <div class="col-auto">
+            <button type="button" class="btn btn-primary" @onclick="CreateNotifcationAsync">プッシュ通知を実行</button>
+        </div>
+    </div>
+}
+
+@code {
+
+    private bool isSupportedByBrowser;
+    private string permission;
+
+    protected override async Task OnInitializedAsync()
+    {
+        isSupportedByBrowser = await JSRuntime.InvokeAsync<bool>("PushNotifications.isSupported");
+        permission = await JSRuntime.InvokeAsync<string>("PushNotifications.askPermission");
+        await JSRuntime.InvokeVoidAsync("PushNotifications.requestSubscription");
+    }
+
+    private async Task CreateNotifcationAsync()
+    {
+        await JSRuntime.InvokeVoidAsync("PushNotifications.create");
+    }
+
+}
