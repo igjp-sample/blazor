@@ -1,0 +1,245 @@
+﻿@page "/ganttbypolygonchart"
+@inject IJSRuntime JSRuntime;
+@using IgniteUI.Blazor.Controls
+@inject IIgniteUIBlazor IgniteUIBlazor
+
+<PageTitle>Gantt by Polygon Chart</PageTitle>
+
+<div class="container vertical" style="height:600px">
+    <div class="container vertical">
+        <igc-dockmanager @ref="dockManager" id="dockManager" height="100%" width="100%">
+            @*NOTE: code in DockManagerOverview.js file sets layout of these DIV elements:*@
+            <div slot="task" style="height: 100%; width: 100%;">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Task</th>
+                            <th>Start</th>
+                            <th>End</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var task in this.TaskDefinitions)
+                        {
+                            <tr>
+                                <td style="padding:2.03rem 0.5rem">@task.Name</td>
+                                @{
+                                    var startDate = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(task.Start).ToLocalTime();
+                                    string start = startDate.ToString("MM/dd");
+                                    <td style="padding:2.03rem 0.5rem">@start</td>
+                                }
+                                @{
+                                    var stopDate = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(task.Stop).ToLocalTime();
+                                    string stop = stopDate.ToString("MM/dd");
+                                    <td style="padding:2.03rem 0.5rem">@stop</td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div slot="gantt" style="height: 100%; width: 100%;">
+                @if (this.TaskDefinitions != null && this.TasksByName != null)
+                {
+                    <IgbDataChart Height="100%" Width="100%" @ref="Chart"
+                               HighlightingMode="SeriesHighlightingMode.FadeOthers"
+                               SeriesMouseEnterScript="onGanttChartMouseEnter"
+                               LeftMargin="0"
+                               RightMargin="0"
+                               TopMargin="42"
+                               BottomMargin="20"
+                               IsHorizontalZoomEnabled="false"
+                               IsVerticalZoomEnabled="false">
+
+                        <IgbNumericXAxis Name="xAxis" MinimumValue="1651417200" LabelVisibility="Visibility.Collapsed" MaximumValue="1652022000" Interval="86400" Title="Work Days" />
+                        <IgbCategoryXAxis Name="xAxisShared" Label="Date" Gap="1" DataSource="Data" />
+                        <IgbNumericYAxis Name="yAxis" MinimumValue="0" MaximumValue="5" Interval="1" IsInverted="true" LabelVisibility="Visibility.Collapsed" />
+
+                        <IgbCategoryYAxis Name="labelAxis" Label="Category" DataSource="TaskCategories" Interval="1"
+                                        LabelVisibility="Visibility.Collapsed" Gap="0" IsInverted="true"/>
+
+                        @foreach (var taskDataItems in this.TasksByName.Values)
+                        {
+                            <IgbScatterPolygonSeries XAxisName="xAxis" YAxisName="yAxis"
+                                                  DataSource="@taskDataItems"
+                                                  ShapeMemberPath="Points"
+                                                  Outline="Transparent"
+                                                  Title="@taskDataItems[0].Name"
+                                                  Brush="@taskDataItems[0].Color"
+                                                  MarkerTemplateScript="onGanttMarker"/>
+                        }
+
+
+                    </IgbDataChart>
+                }
+            </div>
+        </igc-dockmanager>
+    </div>
+</div>
+
+@code {
+
+    private IgbLegend Legend;
+    private IgbDataChart Chart;
+    private List<TaskInfo> TaskDefinitions;
+    private List<TaskInfo> TaskCategories;
+    private Dictionary<string, List<TaskInfo>> TasksByName;
+    private List<SharedAxisDateItem> Data;
+
+    protected override async Task OnInitializedAsync()
+    {
+        IgbDataChartCoreModule.Register(IgniteUIBlazor);
+        IgbDataChartCategoryCoreModule.Register(IgniteUIBlazor);
+        IgbDataChartCategoryModule.Register(IgniteUIBlazor);
+        IgbDataChartVerticalCategoryModule.Register(IgniteUIBlazor);
+        IgbDataChartInteractivityModule.Register(IgniteUIBlazor);
+        IgbDataChartScatterModule.Register(IgniteUIBlazor);
+        IgbDataChartScatterCoreModule.Register(IgniteUIBlazor);
+        IgbScatterPolygonSeriesModule.Register(IgniteUIBlazor);
+        IgbDataChartCategoryModule.Register(IgniteUIBlazor);
+        IgbDataChartCategoryCoreModule.Register(IgniteUIBlazor);
+
+        IgbLegendModule.Register(IgniteUIBlazor);
+
+        this.Data = SharedAxisDateData.Create();
+
+        // deinfing information about tasks
+        TaskDefinitions = new List<TaskInfo>();
+
+        var today = DateTime.Now;
+
+        // tasks for VD department
+        TaskDefinitions.Add(new TaskInfo { Start = 1651417200, Stop = 1651503600, Category = "VD", Name = "Task1" });
+
+        // tasks for DEV department
+        TaskDefinitions.Add(new TaskInfo { Start = 1651503600,  Stop = 1651676400,  Category = "DEV", Name = "Task2" });
+
+        // tasks for QE department
+        TaskDefinitions.Add(new TaskInfo { Start = 1651676400,  Stop = 1651762800,  Category = "QE", Name = "Task3" });
+
+        // tasks for DOCS department
+        TaskDefinitions.Add(new TaskInfo { Start = 1651762800,  Stop = 1651935600,  Category = "DOCS", Name = "Task4" });
+
+        // tasks for SUPPORT department
+        TaskDefinitions.Add(new TaskInfo { Start = 1651935600,  Stop = 1652022000,  Category = "SUPPORT", Name = "Task5" });
+
+        // defining lookup dictionary for colors of tasks'
+        var taskColors = new Dictionary<string, string>();
+        taskColors.Add("VD",    "#E49F24");
+        taskColors.Add("DEV", "#ECE432");
+        taskColors.Add("QE",  "#C054E9");
+        taskColors.Add("DOCS",  "#24B3E4");
+        taskColors.Add("SUPPORT",   "#2EA0A0");
+
+        // groupping tasks by their name and category
+        var tasksByCategory = new Dictionary<string, TaskInfo>();
+        var tasksByName = new Dictionary<string, List<TaskInfo>>();
+        var taskCategoryID = 0;
+        var taskHeight = 0.4;
+        for (int i = 0; i < TaskDefinitions.Count; i++)
+        {
+            var task = TaskDefinitions[i];
+
+            if (!tasksByName.ContainsKey(task.Name))
+                tasksByName.Add(task.Name, new List<TaskInfo>());
+
+            tasksByName[task.Name].Add(task);
+
+            if (taskColors.ContainsKey(task.Category))
+                task.Color = taskColors[task.Category];
+
+            // grouping tasks by their category index
+            if (tasksByCategory.ContainsKey(task.Category))
+            {
+                task.CategoryID = tasksByCategory[task.Category].CategoryID;
+            }
+            else
+            {
+                task.CategoryID = taskCategoryID++;
+                tasksByCategory.Add(task.Category, task);
+            }
+
+            task.CenterX = task.Start + (task.Duration / 2.0);
+            task.CenterY = task.CategoryID + .5;
+
+            // generating shape points for each task
+            var points = new List<Point>();
+            points.Add(new Point { X = task.Start, Y = task.CenterY - taskHeight });
+            points.Add(new Point { X = task.Start + task.Duration, Y = task.CenterY - taskHeight });
+            points.Add(new Point { X = task.Start + task.Duration, Y = task.CenterY + taskHeight });
+            points.Add(new Point { X = task.Start, Y = task.CenterY + taskHeight });
+            task.Points = new List<List<Point>> { points };
+        }
+
+        this.TaskCategories = new List<TaskInfo>();
+        this.TaskCategories.Add(new TaskInfo());
+        this.TaskCategories.AddRange(tasksByCategory.Values.ToList());
+        this.TaskCategories.Add(new TaskInfo());
+        this.TasksByName = tasksByName;
+
+        await Task.Delay(1);
+    }
+
+    public class TaskInfo
+    {
+        public double Duration { get { return this.Stop - this.Start; } }
+        public double Start { get; set; }
+        public double Stop { get; set; }
+        public string Name { get; set; }
+        public string Color { get; set; }
+        public string Category { get; set; }
+        public int CategoryID { get; set; }
+
+        public double CenterX { get; set; }
+        public double CenterY { get; set; }
+        public List<List<Point>> Points { get; set; }
+
+        public TaskInfo()
+        {
+            Color = "gray";
+            Points = new List<List<Point>>();
+        }
+    }
+
+    public class SharedAxisDateData
+    {
+        public static Random random = new Random();
+        public static List<SharedAxisDateItem> Create(int itemsCount = 8)
+        {
+            var data = new List<SharedAxisDateItem>();
+
+            var end = new DateTime(2022, 5, 10);
+            var time = end.AddDays(-itemsCount);
+
+            for (var i = 0; i < itemsCount; i++)
+            {
+                var date = time.ToShortDateString();
+                // adding new data item
+                var item = new SharedAxisDateItem();
+                item.Time = time;
+                item.Date = date;
+                data.Add(item);
+                time = time.AddDays(1);
+            }
+            return data;
+        }
+
+    }
+
+    public class SharedAxisDateItem
+    {
+        public string Date { get; set; }
+        public DateTime Time { get; set; }
+    }
+
+    ElementReference dockManager;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // open DockManagerOverview.bundle.js file to see how the arrange funciton is implemented
+            await JSRuntime.InvokeVoidAsync("DockManagerOverview.arrange", dockManager);
+        }
+    }
+}

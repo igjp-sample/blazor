@@ -1,0 +1,355 @@
+﻿@page "/"
+@inject ClipboardService ClipboardService
+
+@using IgniteUI.Blazor.Controls
+@using System
+@using System.Text;
+@using System.Collections.ObjectModel;
+@inject IIgniteUIBlazor IgniteUIBlazor
+
+<h1>Hello, world!</h1>
+
+Welcome to your new app.
+
+
+
+<div @onkeydown="KeyboardEventHandler" style="height:600px;">
+    <IgbDataGrid  Height="100%"
+              Width="100%"
+              @ref="DataGridRef"
+              DataSource="DataSource"
+              AutoGenerateColumns="false"
+              SelectionMode="GridSelectionMode.RangeCell"
+              PrimaryKey='primaryKeys'
+              DefaultColumnMinWidth="100"
+              ActiveCellChanged="ActiveCellChanged"
+              >
+        <IgbTextColumn Field="ProductName" />
+        <IgbTextColumn Field="Country" />
+        <IgbNumericColumn Field="ProductPrice" />
+        <IgbNumericColumn Field="Profit" />
+        <IgbNumericColumn Field="OrderValue" />
+        <IgbNumericColumn Field="OrderItems" />
+        <IgbNumericColumn Field="Margin" />
+    </IgbDataGrid>
+</div>
+
+
+@code
+{
+    private string[] primaryKeys = { "ProductID" };
+    private async void KeyboardEventHandler(KeyboardEventArgs args)
+    {
+
+        if (args.CtrlKey)
+        {
+            switch (args.Key)
+            {
+                // コピー
+                case "c":
+                    // クリップボードにコピー
+                    await CopyToClipboard();
+                    break;
+                // 貼り付け
+                case "v":
+                    // クリップボードから貼り付け
+                    await PastFromClipboard();
+                    break;
+            }
+        }
+    }
+
+    // クリップボードに選択セルの情報をコピー
+    async Task PastFromClipboard()
+    {
+        //クリップボードからテキストを取得
+        string text = await ClipboardService.ReadTextAsync();
+
+        // クリップボードの文字をタブや改行コードで分割し、２次元リストへ格納
+        List<List<string>> listedPastData = ProcessData(text);
+
+        bool isParseFaild = false;  // 貼り付け途中で型変換に失敗した場合True
+
+        var grid = this.DataGridRef;
+
+        //アクティブセルのインデックス取得
+        var startingRowIndex = grid.ActiveCell.RowIndex;
+        var startingColIndex = -1;
+        for (var i = 0; i < grid.ActualColumns.Count; i++)
+        {
+            //var columnKey = await grid.ActualColumns[i].GetUniqueKeyAsync();
+            string columnKey = await grid.ActualColumns[i].GetUniqueKeyAsync();
+            if (columnKey == grid.ActiveCell.ColumnUniqueKey)
+            {
+                startingColIndex = i;
+                break;
+            }
+        }
+        if (startingColIndex == -1) return;
+
+        // 貼り付け対象のカラム数と行数を設定
+        var pasteRowCount = listedPastData.Count;
+        var pasteColumnCount = listedPastData[0].Count;
+
+        // 貼り付け対象がグリッドの行数や列数を超えた場合はエラーとする
+        if (grid.ActualColumns.Count < startingColIndex + pasteColumnCount)
+        //|| grid.ActualDataSource.ActualCount < startingRowIndex + pasteRowCount) 
+        //↑grid.ActualDataSource.ActualCountが現在取得不可なためコメント化
+        {
+
+            await ClipboardService.AlertMessageAsync("対象範囲を超えているため貼り付けられません。");
+            return;
+        }
+
+        // 貼り付け対象の行数分ループで処理
+        for (var rowIdx = 0; rowIdx < pasteRowCount; rowIdx++)
+        {
+
+            // グリッドにバインドしているデータアイテムの取得
+            SaleInfo item = await grid.ActualDataSource.GetItemAtIndexAsync(rowIdx + startingRowIndex) as SaleInfo;
+
+            // 貼り付け対象の列数分ループで処理
+            for (var colIdx = 0; colIdx < pasteColumnCount; colIdx++)
+            {
+                string pasteValue = listedPastData[rowIdx][colIdx];
+                var column = grid.ActualColumns[colIdx + startingColIndex];
+                var propertyToUpdate = item.GetType().GetProperty(column.Field);
+
+                // 貼り付け先のバインドデータの型を参照してパース処理
+                // ※このサンプルでは型がStringとdoubleだけだが、他の方にも対応する必要あり
+                if (propertyToUpdate.GetValue(item).GetType() == typeof(string))
+                {
+                    propertyToUpdate.SetValue(item, pasteValue);
+                }
+                else if (propertyToUpdate.GetValue(item).GetType() == typeof(double))
+                {
+                    double value;
+                    if (double.TryParse(pasteValue, out value))
+                    {
+                        propertyToUpdate.SetValue(item, value);
+                    }
+                    else
+                    {
+                        isParseFaild = true;
+                    }
+                }
+            }
+            // グリッドのデータ更新
+            grid.NotifyUpdateItem(this.DataSource, this.DataSource.IndexOf(item), item);
+        }
+
+        //貼り付けしたセルの範囲を選択状態に設定
+        grid.SelectedCellRanges.Add(new IgbCellRange()
+        {
+            StartColumn = startingColIndex,
+            EndColumn = startingColIndex + pasteColumnCount - 1,
+            StartRow = startingRowIndex,
+            EndRow = startingRowIndex + pasteRowCount - 1
+        });
+
+        if (isParseFaild)
+            await ClipboardService.AlertMessageAsync("データ型が一致しない箇所がありました。型を確認して再度試してください");
+
+    }
+
+    // クリップボードからグリッドセルへ貼り付け（Activeセルが起点となる）
+    async Task CopyToClipboard()
+    {
+
+        var grid = this.DataGridRef;
+        StringBuilder sb = new StringBuilder();
+
+        //現在の選択セルを取得
+        IgbGridSelectedCellRangesCollection cellRanges = await grid.GetCurrentSelectedCellRangesAsync();
+        IgbCellRange cellRange = cellRanges.FirstOrDefault();
+        if (cellRange == null)
+            return;
+
+        // 範囲選択セルの行数ループ処理
+        for (var i = cellRange.StartRow; i <= cellRange.EndRow; i++)
+        {
+            // グリッドにバインドしているデータアイテムの取得
+            SaleInfo item = await grid.ActualDataSource.GetItemAtIndexAsync(i) as SaleInfo;
+
+            // 範囲選択セルの列数ループ処理
+            for (var j = cellRange.StartColumn; j <= cellRange.EndColumn; j++)
+            {
+                // 該当セルの値取得および文字列連結
+                var cellValue = await grid.ResolveCellValueFromPositionAsync(i, j);
+                sb.Append(cellValue);
+                if (j != cellRange.EndColumn)
+                {
+                    sb.Append("\t");
+                }
+            }
+            sb.AppendLine();
+        }
+
+        // クリップボードへコピー
+        await ClipboardService.WriteTextAsync(sb.ToString());
+    }
+
+    // 文字列で渡されるクリップボードのデータをリストに格納
+    private List<List<string>> ProcessData(string data)
+    {
+
+        string[] pasteData = data.Split("\n");
+
+        List<List<string>> listedPastData = new List<List<string>>();
+
+        for (int i = 0; i < pasteData.Length; i++)
+        {
+            //pasteData[i] = pasteData[i].Split("\t");
+            if (pasteData[i].Length > 0)
+                listedPastData.Add(new List<string>(pasteData[i].Split("\t")));
+        }
+
+        return listedPastData;
+    }
+
+
+    private void ActiveCellChanged(IgbGridActiveCellChangedEventArgs args)
+    {
+        // 現状、アクティブセルの取得にはこのイベントハンドラが必要
+    }
+
+
+    public IgbDataGrid DataGridRef;
+    public ObservableCollection<SaleInfo> DataSource { get; set; }
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        IgbDataGridModule.Register(IgniteUIBlazor);
+
+        GenerateData();
+    }
+
+    //public void ClickButtonPinned()
+    //{
+    //    // 選択済の複数行を配列で取得
+    //}
+
+    //public void ClickButton1()
+    //{
+    //    // 選択済の複数行を配列で取得
+    //    var selectedItems = DataGridRef.SelectedItems.ToArray();
+    //}
+
+    //public void ClickButton2()
+    //{
+    //    // 2行目にデータを挿入
+    //    var selectedItems = DataGridRef.SelectedItems.ToArray();
+
+    //    foreach (SaleInfo saleInfo in selectedItems)
+    //    {
+    //        if (saleInfo != null)
+    //        {
+    //            saleInfo.ProductName = "Updated : " + saleInfo.ProductName;
+    //            DataSource.Remove(saleInfo);
+    //            DataSource.Insert(1, saleInfo);
+    //        }
+    //    }
+
+    //    // 選択中の行データを移動したため、クリア
+    //    DataGridRef.SelectedItems.Clear();
+
+
+    //}
+
+    //public void ClickButton3()
+    //{
+    //    // 3行目のレコードを削除
+    //    DataSource.RemoveAt(2);
+    //}
+
+    public void GenerateData()
+    {
+        string[] names = new string[] {
+            "Intel CPU", "AMD CPU",
+            "Intel Motherboard", "AMD Motherboard", "Nvidia Motherboard",
+            "Nvidia GPU", "Gigabyte GPU", "Asus GPU", "AMD GPU", "MSI GPU",
+            "Corsair Memory", "Patriot Memory", "Skill Memory",
+            "Samsung HDD", "WD HDD", "Seagate HDD", "Intel HDD", "Asus HDD",
+            "Samsung SSD", "WD SSD", "Seagate SSD", "Intel SSD", "Asus SSD",
+            "Samsung Monitor", "Asus Monitor", "LG Monitor", "HP Monitor" };
+
+        string[] countries = new string[] {
+            "USA", "UK", "France", "Canada", "Poland",
+            "Denmark", "Croatia", "Australia", "Seychelles",
+            "Sweden", "Germany", "Japan", "Ireland",
+            "Barbados", "Jamaica", "Cuba", "Spain", };
+        string[] status = new string[] { "Packing", "Shipped", "Delivered" };
+
+        var sales = new ObservableCollection<SaleInfo>();
+
+        for (var i = 0; i < 200; i++)
+        {
+            var price = GetRandomNumber(10000, 90000) / 100;
+            var items = GetRandomNumber(4, 30);
+            var value = Math.Round(price * items);
+            var margin = GetRandomNumber(2, 5);
+            var profit = Math.Round((price * margin / 100) * items);
+            var country = GetRandomItem(countries);
+
+            var item = new SaleInfo()
+            {
+                Country = country,
+                CountryFlag = GetCountryFlag(country),
+                Margin = margin,
+                OrderDate = GetRandomDate(),
+                OrderItems = items,
+                OrderValue = value,
+                ProductID = 1001 + i,
+                ProductName = GetRandomItem(names),
+                ProductPrice = price,
+                Profit = Math.Round(profit),
+                Status = GetRandomItem(status)
+            };
+            sales.Add(item);
+        }
+
+        this.DataSource = sales;
+    }
+
+    public double GetRandomNumber(double min, double max)
+    {
+        return Math.Round(min + (new System.Random().NextDouble() * (max - min)));
+    }
+
+    public string GetRandomItem(string[] array)
+    {
+        var index = (int)Math.Round(GetRandomNumber(0, array.Length - 1));
+        return array[index];
+    }
+
+    public DateTime GetRandomDate()
+    {
+        var today = new DateTime();
+        var year = today.Year;
+        var month = this.GetRandomNumber(1, 9);
+        var day = this.GetRandomNumber(10, 27);
+        return new DateTime(year, (int)month, (int)day);
+    }
+
+    public string GetCountryFlag(string country)
+    {
+        var flag = "https://static.infragistics.com/xplatform/images/flags/" + country + ".png";
+        return flag;
+    }
+
+    public class SaleInfo
+    {
+        public string Status { get; set; }
+        public string ProductName { get; set; }
+        public string CountryFlag { get; set; }
+        public string Country { get; set; }
+        public DateTime OrderDate { get; set; }
+        public double Profit { get; set; }
+        public double ProductPrice { get; set; }
+        public double ProductID { get; set; }
+        public double OrderValue { get; set; }
+        public double OrderItems { get; set; }
+        public double Margin { get; set; }
+    }
+}

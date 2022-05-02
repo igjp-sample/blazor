@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+	<!-- NPM Updates for automatic build -->
+	<PropertyGroup>
+		<NpmRoot>npmJS\</NpmRoot>
+		<DefaultItemExcludes>$(DefaultItemExcludes);$(NpmRoot)node_modules\**</DefaultItemExcludes>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<Content Remove="$(NpmRoot)**" />
+		<None Remove="$(NpmRoot)**" />
+		<None Include="$(NpmRoot)**" Exclude="$(NpmRoot)node_modules\**" />
+	</ItemGroup>
+
+	<Target Name="DebugEnsureNodeEnv" BeforeTargets="Build" Condition=" '$(Configuration)' == 'Debug' And !Exists('$(NpmRoot)node_modules') ">
+		<Exec Command="node --version" ContinueOnError="true">
+			<Output TaskParameter="ExitCode" PropertyName="ErrorCode" />
+		</Exec>
+		<Error Condition="'$(ErrorCode)' != '0'" Text="Node.js is required to build and run this project. To continue, please install Node.js from https://nodejs.org/, and then restart your command prompt or IDE." />
+		<Message Importance="high" Text="Restoring dependencies using 'npm'. This may take several minutes..." />
+		<Exec WorkingDirectory="$(NpmRoot)" Command="npm install" />
+		<Exec WorkingDirectory="$(NpmRoot)" Command="npm run build" />
+	</Target>
+
+	<Target Name="PreBuild" BeforeTargets="PreBuildEvent">
+		<Exec WorkingDirectory="$(NpmRoot)" Command="npm install" />
+		<Exec WorkingDirectory="$(NpmRoot)" Command="npm run build" />
+	</Target>
+
+	<!-- End NPM Updates -->
+
+  <ItemGroup>
+    <PackageReference Include="IgniteUI.Blazor" Version="21.2.73" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="6.0.4" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="6.0.4" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>
