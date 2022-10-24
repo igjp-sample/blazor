@@ -1,0 +1,45 @@
+﻿@page "/"
+@using IgniteUI.Blazor.Controls
+@inject IIgniteUIBlazor IgniteUIBlazor
+
+@code
+{
+    public List<SaleInfo> DataSource { get; set; } = new List<SaleInfo>();
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        DataGridModule.Register(IgniteUIBlazor);
+
+        for (int i = 0; i < 100; i++)
+        {
+            this.DataSource.Add(new SaleInfo
+            {
+                ProductID = 1001 + i,
+                ProductName = $"商品 {i + 1}",
+                Country = "日本",
+                OrderDate = DateTime.Today
+            });
+        }
+    }
+
+    public class SaleInfo
+    {
+        public double ProductID { get; set; }
+        public string ProductName { get; set; }
+        public string Country { get; set; }
+        public DateTime OrderDate { get; set; }
+    }
+}
+
+<div class="gridContainer">
+<DataGrid Height="100%"
+          Width="100%"
+          DataSource="DataSource"
+          DefaultColumnMinWidth="100"
+          AutoGenerateColumns="false">
+    <NumericColumn Field="ProductID" HeaderText="商品 ID" />
+    <TextColumn Field="ProductName" HeaderText="商品名" />
+    <TextColumn Field="Country" HeaderText="生産国" />
+    <DateTimeColumn Field="OrderDate" HeaderText="発注日" />
+</DataGrid>
+</div>
